@@ -1,0 +1,158 @@
+version: '3.8'
+
+services:
+  registry:
+    image: openjdk:17-slim
+    container_name: recycle-registry
+    ports:
+      - "8761:8761"
+    volumes:
+      - ./registry/target/registry-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    networks:
+      - recycle-net
+
+  order-service:
+    image: openjdk:17-slim
+    container_name: recycle-order
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./order-service/target/order-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  engineer-service:
+    image: openjdk:17-slim
+    container_name: recycle-engineer
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./engineer-service/target/engineer-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  merchant-service:
+    image: openjdk:17-slim
+    container_name: recycle-merchant
+    ports:
+      - "8084:8084"
+    volumes:
+      - ./merchant-service/target/merchant-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  auction-service:
+    image: openjdk:17-slim
+    container_name: recycle-auction
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./auction-service/target/auction-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  websocket-gateway:
+    image: openjdk:17-slim
+    container_name: recycle-ws
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./websocket-gateway/target/websocket-gateway-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  push-service:
+    image: openjdk:17-slim
+    container_name: recycle-push
+    ports:
+      - "8087:8087"
+    volumes:
+      - ./push-service/target/push-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  payment-service:
+    image: openjdk:17-slim
+    container_name: recycle-payment
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./payment-service/target/payment-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  coupon-service:
+    image: openjdk:17-slim
+    container_name: recycle-coupon
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./coupon-service/target/coupon-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  gateway:
+    image: openjdk:17-slim
+    container_name: recycle-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./gateway/target/gateway-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+  recovery-service:
+    image: openjdk:17-slim
+    container_name: recycle-recovery
+    ports:
+      - "8091:8091"
+    volumes:
+      - ./recovery-service/target/recovery-service-1.0.0.jar:/app/app.jar
+    working_dir: /app
+    command: java -jar /app/app.jar
+    depends_on:
+      - registry
+    networks:
+      - recycle-net
+
+networks:
+  recycle-net:
+    driver: bridge

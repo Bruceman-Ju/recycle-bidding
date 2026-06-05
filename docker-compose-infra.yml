@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: recycle-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: recycle_bidding
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=1000
+      --innodb_buffer_pool_size=512M
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8
+    container_name: recycle-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.2
+    container_name: rmq-namesrv
+    ports:
+      - "9876:9876"
+    environment:
+      JAVA_OPT_EXT: "-server -Xms1024m -Xmx1024m"
+    command: sh mqnamesrv
+#    healthcheck:
+#      test: [ "CMD", "curl", "-f", "http://host.docker.internal:9876" ]
+#      interval: 30s
+#      timeout: 5s
+#      retries: 3
+    networks:
+      - recycle-bidding
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.2
+    container_name: rmq-broker
+    ports:
+      - "10911:10911"
+      - "10909:10909"
+    environment:
+      JAVA_OPT_EXT: "-server -Xms512m -Xmx512m -Xmn256m"
+    volumes:
+      - ./rocketmq/broker.conf:/etc/rocketmq/broker.conf
+    command: sh mqbroker -c /etc/rocketmq/broker.conf -n rocketmq-namesrv:9876
+    depends_on:
+      - rocketmq-namesrv
+    networks:
+      - recycle-bidding
+
+  rocketmq-dashboard:
+    image: apacherocketmq/rocketmq-dashboard:latest
+    container_name: rmq-dashboard
+    ports:
+      - "8081:8082"
+    environment:
+      JAVA_OPTS: "-Drocketmq.namesrv.addr=rocketmq-namesrv:9876"
+    depends_on:
+      - rocketmq-namesrv
+    networks:
+      - recycle-bidding
+
+  nacos:
+    image: nacos/nacos-server:v2.4.3
+    container_name: recycle-nacos
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: false
+      JVM_XMS: 512m
+      JVM_XMX: 512m
+      JVM_XMN: 256m
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8848/nacos/actuator/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - recycle-bidding
+
+volumes:
+  mysql-data:
+  redis-data:
+
+networks:
+  recycle-bidding:
+    driver: bridge

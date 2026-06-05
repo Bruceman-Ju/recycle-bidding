@@ -1,0 +1,13 @@
+-- 商户服务初始化表结构
+
+CREATE TABLE IF NOT EXISTS `merchant` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '商户ID',
+    `company_name` VARCHAR(100) NOT NULL COMMENT '公司名称',
+    `contact_name` VARCHAR(50) DEFAULT NULL COMMENT '联系人',
+    `phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+    `status` TINYINT DEFAULT 1 COMMENT '状态：0-禁用，1-启用',
+    `credit_score` INT DEFAULT 100 COMMENT '信用分',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商户表';

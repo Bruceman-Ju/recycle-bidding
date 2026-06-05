@@ -1,0 +1,23 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: push-service
+  cloud:
+    compatibility-verifier:
+      enabled: false
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+rocketmq:
+  name-server: localhost:9876
+  producer:
+    group: push-producer-group
+
+logging:
+  level:
+    com.recycle.bidding: DEBUG
