@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
  * 工程师服务 MQ 监听器
  * <p>
  * ORDER_CREATED → 分配空闲工程师并创建工程师任务
- * ORDER_STATUS_CHANGED → 按需处理订单状态变化
  */
 @Slf4j
 @Component
@@ -22,7 +21,7 @@ import org.springframework.stereotype.Component;
 @RocketMQMessageListener(
         topic = "order-topic",
         consumerGroup = "engineer-consumer",
-        selectorExpression = "ORDER_CREATED || ORDER_STATUS_CHANGED"
+        selectorExpression = "ORDER_CREATED"
 )
 public class EngineerMessageListener implements RocketMQListener<String> {
 

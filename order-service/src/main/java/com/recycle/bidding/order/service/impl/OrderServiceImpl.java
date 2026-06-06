@@ -115,9 +115,6 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         orderEventLogRepository.insert(eventLog);
 
-        // 发布状态变更事件
-        orderEventPublisher.publishStatusChanged(order, eventLog);
-
         log.info("用户确认估价: orderId={}", orderId);
         return order;
     }

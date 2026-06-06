@@ -177,4 +177,29 @@ public class AuctionRedisRepository {
         redisTemplate.delete(infoKey(auctionId));
         redisTemplate.delete(merchantsKey(auctionId));
     }
+
+    /**
+     * 获取所有状态为 RUNNING 的活跃竞拍 ID
+     *
+     * 扫描 Redis 中所有 auction:info:* 的 HASH key，
+     * 只返回 status 字段为 RUNNING 的竞拍。
+     */
+    public List<String> getActiveAuctionIds() {
+        String pattern = AuctionConstants.REDIS_KEY_PREFIX_INFO + "*";
+        Set<String> keys = redisTemplate.keys(pattern);
+        if (keys == null || keys.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> activeIds = new java.util.ArrayList<>();
+        for (String key : keys) {
+            String status = (String) redisTemplate.opsForHash().get(key, "status");
+            if (AuctionConstants.AUCTION_STATUS_RUNNING.equals(status)) {
+                // key = "auction:info:AUC123" → 取最后一段
+                String auctionId = key.substring(AuctionConstants.REDIS_KEY_PREFIX_INFO.length());
+                activeIds.add(auctionId);
+            }
+        }
+        return activeIds;
+    }
 }

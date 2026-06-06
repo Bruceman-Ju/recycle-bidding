@@ -134,7 +134,6 @@ public class EngineerServiceImpl implements EngineerService {
             throw new BizException(ErrorCode.SYSTEM_ERROR.getCode(), "订单不存在");
         }
 
-        // 手动乐观锁更新：显式控制 version 字段，避免 @Version 注解依赖 OptimisticLockerInterceptor
         LambdaUpdateWrapper<Order> updateWrapper = new LambdaUpdateWrapper<Order>()
                 .eq(Order::getId, orderId)
                 .set(Order::getStatus, SECOND_EVALUATED)

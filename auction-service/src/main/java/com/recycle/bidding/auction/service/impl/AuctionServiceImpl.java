@@ -90,7 +90,7 @@ public class AuctionServiceImpl implements AuctionService {
                 SystemConstants.AUCTION_TIMEOUT_DELAY_LEVEL
         );
 
-        // 4. 发送 AUCTION_STARTED 通知商户
+        // 4. 发送 AUCTION_STARTED 消息到 MQ（广播消费，通知所有在线商户）
         try {
             Map<String, Object> msgBody = new HashMap<>();
             msgBody.put("auctionId", auctionId);
@@ -109,7 +109,7 @@ public class AuctionServiceImpl implements AuctionService {
             );
             log.info("竞拍开始消息已发送: auctionId={}, orderId={}", auctionId, orderId);
         } catch (Exception e) {
-            log.warn("竞拍开始消息发送失败（不影响主流程）: auctionId={}", auctionId, e);
+            log.warn("竞拍开始消息发送失败（不影响主流程，客户端会通过拉取发现新竞拍）: auctionId={}", auctionId, e);
         }
 
         log.info("竞拍已发起: auctionId={}, orderId={}, basePrice={}", auctionId, orderId, basePrice);
@@ -126,6 +126,14 @@ public class AuctionServiceImpl implements AuctionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AuctionRecord placeBid(String auctionId, Long merchantId, Long orderId, BigDecimal bidPrice) {
+        // Layer 0: 先查竞拍是否已结束
+        String status = auctionRedisRepository.getAuctionStatus(auctionId);
+        if (AuctionConstants.AUCTION_STATUS_ENDED.equals(status)) {
+            throw new BizException(20002, "竞拍已结束");
+        }
+        if (status == null) {
+            throw new BizException(20002, "竞拍不存在或已过期");
+        }
         // Layer 1: 分布式锁（Stripe 风格幂等）
         // 同一商户在同一竞拍中并发出价时，只有第一个请求能获取锁
         // TTL 覆盖整个竞拍周期，锁过期后商户可再次出价
@@ -354,7 +362,16 @@ public class AuctionServiceImpl implements AuctionService {
 
     @Override
     public List<Map<String, Object>> getActiveAuctions() {
-        return new ArrayList<>();
+        List<String> activeIds = auctionRedisRepository.getActiveAuctionIds();
+        if (activeIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>(activeIds.size());
+        for (String auctionId : activeIds) {
+            result.add(getAuctionStatus(auctionId));
+        }
+        return result;
     }
 
     @Override
