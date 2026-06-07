@@ -318,18 +318,24 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/api/v1/order/1",
+                            "raw": "{{baseUrl}}/api/v1/order/:orderId",
                             "path": [
                                 "api",
                                 "v1",
                                 "order",
-                                "1"
+                                ":orderId"
                             ],
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "query": [],
-                            "variable": []
+                            "variable": [
+                                {
+                                    "key": "orderId",
+                                    "description": "",
+                                    "type": "string"
+                                }
+                            ]
                         }
                     },
                     "response": [
@@ -346,12 +352,12 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{baseUrl}}/api/v1/order/1",
+                                    "raw": "{{baseUrl}}/api/v1/order/:orderId",
                                     "path": [
                                         "api",
                                         "v1",
                                         "order",
-                                        "1"
+                                        ":orderId"
                                     ],
                                     "host": [
                                         "{{baseUrl}}"
