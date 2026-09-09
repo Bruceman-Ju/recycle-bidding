@@ -2,6 +2,8 @@ package com.recycle.bidding.gateway.filter;
 
 import com.recycle.bidding.common.util.JwtUtil;
 import io.jsonwebtoken.Claims;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -13,32 +15,39 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * 鉴权全局过滤器
  *
  * 白名单路径直接放行，其余路径需要验证 Authorization header 中的 JWT。
- * 验证通过后将 userId 和 role 放入 x-user-id / x-user-role header 透传到下游。
+ * 白名单从 Nacos (gateway-auth.yml) 动态加载，支持热刷新；
+ * Nacos 不可用时兜底使用 application.yml 中的本地配置。
+ *
+ * 白名单配置格式（Nacos 或本地 yml）：
+ *   gateway:
+ *     auth:
+ *       white-list:
+ *         - /auth/login
+ *         - /auth/register
  */
+@RefreshScope
 @Component
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
-    /** 白名单路径 */
-    private static final String[] WHITE_LIST = {
-            "/auth/login",
-            "/auth/register",
-            "/merchant/create",
-            "/eureka/"
-    };
+    @Value("${gateway.auth.white-list:}")
+    private List<String> whiteList;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
         // 白名单直接放行
-        for (String whitePath : WHITE_LIST) {
-            if (path.contains(whitePath)) {
-                return chain.filter(exchange);
+        if (whiteList != null) {
+            for (String whitePath : whiteList) {
+                if (path.contains(whitePath)) {
+                    return chain.filter(exchange);
+                }
             }
         }
 

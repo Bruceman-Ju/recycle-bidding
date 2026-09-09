@@ -20,9 +20,9 @@ public class OrderController {
      * 创建订单
      */
     @PostMapping("/create")
-    public Result<Order> createOrder(@Valid @RequestBody CreateOrderRequest req) {
-        Order order = orderService.createOrder(req.getUserId(), req.getPhoneModelId(), req.getInitialEstimate());
-        return Result.ok(order);
+    public Result<String> createOrder(@Valid @RequestBody CreateOrderRequest req) {
+        String orderNo = orderService.createOrder(req.getUserId(), req.getPhoneModelId(), req.getInitialEstimate());
+        return Result.ok(orderNo);
     }
 
     /**

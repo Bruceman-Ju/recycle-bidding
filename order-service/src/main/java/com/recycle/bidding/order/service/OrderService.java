@@ -1,7 +1,6 @@
 package com.recycle.bidding.order.service;
 
 import com.recycle.bidding.common.result.PageResult;
-import com.recycle.bidding.common.result.Result;
 import com.recycle.bidding.order.entity.Order;
 
 import java.math.BigDecimal;
@@ -10,8 +9,9 @@ public interface OrderService {
 
     /**
      * 创建订单
+     * @return 订单号（发送前生成）；创建成败以是否抛异常判定
      */
-    Order createOrder(Long userId, Long phoneModelId, BigDecimal initialEstimate);
+    String createOrder(Long userId, Long phoneModelId, BigDecimal initialEstimate);
 
     /**
      * 用户确认估价

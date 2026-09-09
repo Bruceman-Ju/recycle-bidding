@@ -1,6 +1,5 @@
 package com.recycle.bidding.order.service.impl;
 
-import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -11,13 +10,12 @@ import com.recycle.bidding.common.result.PageResult;
 import com.recycle.bidding.common.util.TraceIdUtil;
 import com.recycle.bidding.order.entity.Order;
 import com.recycle.bidding.order.entity.OrderEventLog;
-import com.recycle.bidding.order.entity.OrderTask;
 import com.recycle.bidding.order.repository.OrderEventLogRepository;
 import com.recycle.bidding.order.repository.OrderRepository;
-import com.recycle.bidding.order.repository.OrderTaskRepository;
 import com.recycle.bidding.order.service.OrderEventPublisher;
 import com.recycle.bidding.order.service.OrderService;
 import com.recycle.bidding.order.service.OrderStateMachine;
+import com.recycle.bidding.order.service.OrderTransactionManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Service
@@ -36,49 +33,21 @@ public class OrderServiceImpl implements OrderService {
     private final OrderEventLogRepository orderEventLogRepository;
     private final OrderStateMachine orderStateMachine;
     private final OrderEventPublisher orderEventPublisher;
-    private final OrderTaskRepository orderTaskRepository;
+    private final OrderTransactionManager orderTransactionManager;
 
+    /**
+     * 创建订单：只针对最后一步提交的接口
+     * 忽略最后一步之前对当前商品的价格预估操作
+     *
+     * @param userId 用户ID
+     * @param phoneModelId 手机型号ID
+     * @param initialEstimate 初始估价
+     * @return 订单
+     *
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Order createOrder(Long userId, Long phoneModelId, BigDecimal initialEstimate) {
-        String orderNo = "ORD" + IdUtil.getSnowflakeNextIdStr();
-        Order order = Order.builder()
-                .orderNo(orderNo)
-                .userId(userId)
-                .phoneModelId(phoneModelId)
-                .initialEstimate(initialEstimate)
-                .version(1)
-                .status(OrderStatus.PENDING_EVALUATION)
-                .build();
-        orderRepository.insert(order);
-
-        // 记录事件日志
-        OrderEventLog eventLog = OrderEventLog.builder()
-                .orderId(order.getId())
-                .fromStatus(null)
-                .toStatus(OrderStatus.PENDING_EVALUATION)
-                .operator("SYSTEM")
-                .operatorId(userId)
-                .remark("用户下单，初始估价：" + initialEstimate)
-                .traceId(TraceIdUtil.getTraceId())
-                .build();
-        orderEventLogRepository.insert(eventLog);
-
-        // 同步创建工程师任务（同库同事务，无需分布式事务）
-        // engineer_id 在创建时为 NULL，工程师调用 acceptTask 后填充
-        OrderTask task = OrderTask.builder()
-                .orderId(order.getId())
-                .engineerId(null)
-                .taskStatus("ASSIGNED")
-                .assignedAt(LocalDateTime.now())
-                .build();
-        orderTaskRepository.insert(task);
-
-        // 发送MQ消息，为了推送服务。
-        orderEventPublisher.publishOrderCreated(order);
-
-        log.info("订单创建成功: orderId={}, orderNo={}", order.getId(), order.getOrderNo());
-        return order;
+    public String createOrder(Long userId, Long phoneModelId, BigDecimal initialEstimate) {
+        return orderTransactionManager.sendCreateOrderMessage(userId, phoneModelId, initialEstimate);
     }
 
     @Override

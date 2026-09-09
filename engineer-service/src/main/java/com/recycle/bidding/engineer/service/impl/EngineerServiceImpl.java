@@ -50,6 +50,17 @@ public class EngineerServiceImpl implements EngineerService {
             throw new BizException(ErrorCode.SYSTEM_ERROR.getCode(), "暂无空闲工程师");
         }
 
+        EngineerTask taskExist = engineerTaskRepository.selectOne(new LambdaQueryWrapper<EngineerTask>()
+                .eq(EngineerTask::getOrderId, orderId));
+        if( null != taskExist){
+            throw new BizException(ErrorCode.SYSTEM_ERROR.getCode(), "订单已分配工程师");
+        }
+
+        // 业务上极端异常：没有空闲工程师，
+        // todo：落一张"待分配补偿表"然后返回成功（让消息 ack 掉），
+        // 再由定时任务在工程师变空闲时捞起来分配。
+        // 否则 16 次重试全耗在注定失败的条件上，浪费重试额度。
+
         EngineerTask task = EngineerTask.builder()
                 .engineerId(engineer.getId())
                 .orderId(orderId)
@@ -112,7 +123,7 @@ public class EngineerServiceImpl implements EngineerService {
             throw new BizException(ErrorCode.SYSTEM_ERROR.getCode(), "工程师不存在");
         }
 
-        // 计算二次估价
+        // 暂时单机计算二次估价，未来修改成单独服务。
         BigDecimal secondEstimate = evaluationService.calculateSecondEstimate(
                 initialEstimate, appearanceScore, screenScore, functionScore, batteryScore);
 

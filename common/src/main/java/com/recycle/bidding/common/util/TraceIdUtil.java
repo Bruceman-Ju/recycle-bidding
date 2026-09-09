@@ -5,8 +5,7 @@ import org.slf4j.MDC;
 import java.util.UUID;
 
 /**
- * 全链路追踪ID工具类
- *
+ * 全链路追踪 ID 工具类
  * 使用 SLF4J MDC 存储 traceId，在日志 pattern 中通过 %X{traceId} 输出。
  * Gateway 层生成 traceId 后通过 MDC 透传到整个请求链路。
  */
@@ -45,7 +44,6 @@ public class TraceIdUtil {
 
     /**
      * 从 MDC 获取当前 traceId
-     * <p>
      * 如果 MDC 中没有 traceId，自动生成一个并设置到 MDC。
      * 兜底策略确保任何代码路径调用 getTraceId() 都不会返回 null。
      *
@@ -66,7 +64,9 @@ public class TraceIdUtil {
         MDC.remove(TRACE_ID_KEY);
     }
 
+    /**
+     * 私有构造方法，防止实例化
+     */
     private TraceIdUtil() {
-        // 工具类，禁止实例化
     }
 }

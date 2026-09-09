@@ -10,7 +10,7 @@ public class AuctionConstants {
     /** 竞拍 Topic */
     public static final String TOPIC_AUCTION = "auction-topic";
 
-    // ========== 消息标签 ==========
+    //  消息标签 
     /** 竞拍开始 */
     public static final String TAG_AUCTION_STARTED = "AUCTION_STARTED";
     /** 新出价 */
@@ -20,24 +20,30 @@ public class AuctionConstants {
     /** 竞拍结束 */
     public static final String TAG_AUCTION_ENDED = "AUCTION_ENDED";
 
-    // ========== 消息类型（JSON中type字段） ==========
+    //  消息类型（JSON中type字段） 
     public static final String MSG_TYPE_AUCTION_STARTED = "AUCTION_STARTED";
     public static final String MSG_TYPE_AUCTION_TIMEOUT = "AUCTION_TIMEOUT";
     public static final String MSG_TYPE_AUCTION_ENDED = "AUCTION_ENDED";
 
-    // ========== 竞拍状态 ==========
+    //  竞拍状态 
     /** 竞拍进行中 */
     public static final String AUCTION_STATUS_RUNNING = "RUNNING";
     /** 竞拍已结束 */
     public static final String AUCTION_STATUS_ENDED = "ENDED";
 
-    // ========== Redis Key 前缀 ==========
+    //  Redis Key 前缀（已兼容 Cluster：hash tag 包住 auctionId）
     /** 出价有序集合前缀 */
-    public static final String REDIS_KEY_PREFIX_BIDS = "auction:bids:";
+    public static final String REDIS_KEY_PREFIX_BIDS = "auction:{";
     /** 竞拍信息HASH前缀 */
-    public static final String REDIS_KEY_PREFIX_INFO = "auction:info:";
+    public static final String REDIS_KEY_PREFIX_INFO = "auction:{";
     /** 竞拍商户集合前缀 */
-    public static final String REDIS_KEY_PREFIX_MERCHANTS = "auction:merchants:";
+    public static final String REDIS_KEY_PREFIX_MERCHANTS = "auction:{";
     /** 出价锁前缀（分布式锁，Layer 1 幂等） */
-    public static final String REDIS_KEY_PREFIX_LOCK = "bid:lock:";
+    public static final String REDIS_KEY_PREFIX_LOCK = "bid:lock:{";
+    /** 竞拍Key后缀模板（用于拼接完整 key） */
+    public static final String SUFFIX_BIDS = "}:bids";
+    public static final String SUFFIX_INFO = "}:info";
+    public static final String SUFFIX_MERCHANTS = "}:merchants";
+    public static final String SUFFIX_LOCK = "}:";
+    public static final String SUFFIX_BID_COUNT = "}:bidcount:";
 }

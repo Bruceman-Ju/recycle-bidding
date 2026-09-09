@@ -2,6 +2,7 @@ package com.recycle.bidding.payment.listener;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.recycle.bidding.common.constant.RocketMQConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import com.recycle.bidding.payment.entity.PaymentRecord;
 import com.recycle.bidding.payment.service.PaymentService;
@@ -35,9 +36,9 @@ public class PaymentMessageListener {
     @Component
     @RequiredArgsConstructor
     @RocketMQMessageListener(
-            topic = SystemConstants.TOPIC_PAYMENT,
+            topic = RocketMQConstants.TOPIC_PAYMENT,
             consumerGroup = "payment-request-consumer",
-            selectorExpression = SystemConstants.TAG_PAYMENT_REQUEST
+            selectorExpression = RocketMQConstants.TAG_PAYMENT_REQUEST
     )
     public static class PaymentRequestListener implements RocketMQListener<String> {
 
@@ -63,9 +64,9 @@ public class PaymentMessageListener {
     @Component
     @RequiredArgsConstructor
     @RocketMQMessageListener(
-            topic = SystemConstants.TOPIC_PAYMENT,
+            topic = RocketMQConstants.TOPIC_PAYMENT,
             consumerGroup = "payment-success-consumer",
-            selectorExpression = SystemConstants.TAG_PAYMENT_SUCCESS
+            selectorExpression = RocketMQConstants.TAG_PAYMENT_SUCCESS
     )
     public static class PaymentSuccessListener implements RocketMQListener<String> {
 

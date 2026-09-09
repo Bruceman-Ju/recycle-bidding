@@ -1,5 +1,6 @@
 package com.recycle.bidding.gateway.filter;
 
+import com.recycle.bidding.common.constant.HttpConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import com.recycle.bidding.common.util.TraceIdUtil;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -23,7 +24,7 @@ public class TraceIdFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String rawTraceId = exchange.getRequest().getHeaders()
-                .getFirst(SystemConstants.TRACE_ID_HEADER);
+                .getFirst(HttpConstants.TRACE_ID_HEADER);
         final String traceId;
         if (ObjectUtils.isEmpty(rawTraceId)) {
             traceId = TraceIdUtil.generateTraceId();
@@ -31,10 +32,10 @@ public class TraceIdFilter implements GlobalFilter, Ordered {
             traceId = rawTraceId;
         }
         // 设置到 response header
-        exchange.getResponse().getHeaders().set(SystemConstants.TRACE_ID_HEADER, traceId);
+        exchange.getResponse().getHeaders().set(HttpConstants.TRACE_ID_HEADER, traceId);
         // 透传到下游服务
         return chain.filter(exchange.mutate()
-                .request(r -> r.header(SystemConstants.TRACE_ID_HEADER, traceId))
+                .request(r -> r.header(HttpConstants.TRACE_ID_HEADER, traceId))
                 .build());
     }
 

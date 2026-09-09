@@ -1,7 +1,7 @@
 -- 竞拍出价原子脚本（盲拍模式）
 -- KEYS[1] = auction:bids:{auctionId} (ZSET key)
 -- KEYS[2] = auction:info:{auctionId} (HASH key)
--- KEYS[3] = auction:bidcount:{auctionId}:{merchantId} (STRING counter key)
+-- KEYS[3] = auction:{auctionId}:bidcount:{merchantId}  (STRING counter key)
 -- ARGV[1] = merchantId
 -- ARGV[2] = bidPrice
 -- ARGV[3] = currentTimestamp
@@ -37,6 +37,6 @@ redis.call('HSET', KEYS[2], 'currentBid', ARGV[2], 'currentBidder', ARGV[1])
 
 -- 递增出价计数，过期时间与竞拍保持一致
 redis.call('INCR', KEYS[3])
-redis.call('EXPIRE', KEYS[3], 300)
+redis.call('EXPIRE', KEYS[3], 480)
 
 return 1

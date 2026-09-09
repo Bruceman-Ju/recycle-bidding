@@ -1,6 +1,5 @@
 package com.recycle.bidding.auction.repository;
 
-import cn.hutool.core.util.IdUtil;
 import com.recycle.bidding.common.constant.AuctionConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import lombok.RequiredArgsConstructor;
@@ -27,31 +26,31 @@ public class AuctionRedisRepository {
     private final RedisTemplate<String, String> redisTemplate;
 
     private String bidsKey(String auctionId) {
-        return AuctionConstants.REDIS_KEY_PREFIX_BIDS + auctionId;
+        return AuctionConstants.REDIS_KEY_PREFIX_BIDS + auctionId + AuctionConstants.SUFFIX_BIDS;
     }
 
-    private String infoKey(String auctionId) {
-        return AuctionConstants.REDIS_KEY_PREFIX_INFO + auctionId;
+    private String auctionInfoKey(String auctionId) {
+        return AuctionConstants.REDIS_KEY_PREFIX_INFO + auctionId + AuctionConstants.SUFFIX_INFO;
     }
 
     private String merchantsKey(String auctionId) {
-        return AuctionConstants.REDIS_KEY_PREFIX_MERCHANTS + auctionId;
+        return AuctionConstants.REDIS_KEY_PREFIX_MERCHANTS + auctionId + AuctionConstants.SUFFIX_MERCHANTS;
     }
 
     /**
-     * 初始化竞拍：创建ZSET + 设置状态 RUNNING
+     * 初始化竞拍：创建 ZSET + 设置状态 RUNNING
      * TTL = 竞拍时长(180s) + 缓冲区(300s) = 480秒
      * 给 endAuction() 留出充足的读取窗口，避免数据提前过期
      */
     public void initAuction(String auctionId, BigDecimal basePrice) {
-        redisTemplate.opsForHash().putAll(infoKey(auctionId), Map.of(
+        redisTemplate.opsForHash().putAll(auctionInfoKey(auctionId), Map.of(
                 "status", AuctionConstants.AUCTION_STATUS_RUNNING,
                 "basePrice", basePrice.toPlainString(),
                 "currentBidder", "",
                 "currentBid", "0"
         ));
         int ttl = SystemConstants.AUCTION_TTL_BUFFER_SECONDS;
-        redisTemplate.expire(infoKey(auctionId), Duration.ofSeconds(ttl));
+        redisTemplate.expire(auctionInfoKey(auctionId), Duration.ofSeconds(ttl));
     }
 
     /**
@@ -65,7 +64,7 @@ public class AuctionRedisRepository {
             ZSetOperations.TypedTuple<String> tuple = top.iterator().next();
             return BigDecimal.valueOf(tuple.getScore());
         }
-        String basePriceStr = (String) redisTemplate.opsForHash().get(infoKey(auctionId), "basePrice");
+        String basePriceStr = (String) redisTemplate.opsForHash().get(auctionInfoKey(auctionId), "basePrice");
         return basePriceStr != null ? new BigDecimal(basePriceStr) : BigDecimal.ZERO;
     }
 
@@ -98,8 +97,8 @@ public class AuctionRedisRepository {
      * 结束竞拍：标记状态 + 缩短 TTL 等待清理
      */
     public void endAuction(String auctionId) {
-        redisTemplate.opsForHash().put(infoKey(auctionId), "status", AuctionConstants.AUCTION_STATUS_ENDED);
-        redisTemplate.expire(infoKey(auctionId), Duration.ofMinutes(10));
+        redisTemplate.opsForHash().put(auctionInfoKey(auctionId), "status", AuctionConstants.AUCTION_STATUS_ENDED);
+        redisTemplate.expire(auctionInfoKey(auctionId), Duration.ofMinutes(10));
     }
 
     /**
@@ -108,7 +107,7 @@ public class AuctionRedisRepository {
      */
     public void cleanupAuctionData(String auctionId) {
         redisTemplate.delete(bidsKey(auctionId));
-        redisTemplate.delete(infoKey(auctionId));
+        redisTemplate.delete(auctionInfoKey(auctionId));
         redisTemplate.delete(merchantsKey(auctionId));
     }
 
@@ -133,14 +132,14 @@ public class AuctionRedisRepository {
      * 存储关联的 orderId（endAuction 落盘时需要）
      */
     public void setAuctionOrderId(String auctionId, Long orderId) {
-        redisTemplate.opsForHash().put(infoKey(auctionId), "orderId", String.valueOf(orderId));
+        redisTemplate.opsForHash().put(auctionInfoKey(auctionId), "orderId", String.valueOf(orderId));
     }
 
     /**
      * 获取关联的 orderId
      */
     public Long getAuctionOrderId(String auctionId) {
-        String val = (String) redisTemplate.opsForHash().get(infoKey(auctionId), "orderId");
+        String val = (String) redisTemplate.opsForHash().get(auctionInfoKey(auctionId), "orderId");
         return val != null ? Long.parseLong(val) : null;
     }
 
@@ -148,12 +147,11 @@ public class AuctionRedisRepository {
      * 获取竞拍状态
      */
     public String getAuctionStatus(String auctionId) {
-        return (String) redisTemplate.opsForHash().get(infoKey(auctionId), "status");
+        return (String) redisTemplate.opsForHash().get(auctionInfoKey(auctionId), "status");
     }
 
     /**
      * 获取出价锁（分布式锁，Layer 1 幂等）
-     * <p>
      * 使用 Redis SET NX EX 实现，防止同一商户在同一竞拍中并发出价。
      * TTL 设置为竞拍时长 + 额外余量，确保竞拍期间出价不会因为锁重入而产生重复。
      * 锁过期后商户可再次出价，由 Lua 脚本的业务约束（Layer 2）兜底。
@@ -163,7 +161,7 @@ public class AuctionRedisRepository {
      * @return true = 首次获取锁（允许出价）, false = 已有出价在处理中
      */
     public boolean acquireBidLock(String auctionId, Long merchantId) {
-        String lockKey = AuctionConstants.REDIS_KEY_PREFIX_LOCK + auctionId + ":" + merchantId;
+        String lockKey = AuctionConstants.REDIS_KEY_PREFIX_LOCK + auctionId + AuctionConstants.SUFFIX_LOCK + merchantId;
         Boolean acquired = redisTemplate.opsForValue()
                 .setIfAbsent(lockKey, "1", Duration.ofSeconds(SystemConstants.AUCTION_DURATION_SECONDS));
         return Boolean.TRUE.equals(acquired);
@@ -174,7 +172,7 @@ public class AuctionRedisRepository {
      */
     public void deleteAuction(String auctionId) {
         redisTemplate.delete(bidsKey(auctionId));
-        redisTemplate.delete(infoKey(auctionId));
+        redisTemplate.delete(auctionInfoKey(auctionId));
         redisTemplate.delete(merchantsKey(auctionId));
     }
 
@@ -195,8 +193,8 @@ public class AuctionRedisRepository {
         for (String key : keys) {
             String status = (String) redisTemplate.opsForHash().get(key, "status");
             if (AuctionConstants.AUCTION_STATUS_RUNNING.equals(status)) {
-                // key = "auction:info:AUC123" → 取最后一段
-                String auctionId = key.substring(AuctionConstants.REDIS_KEY_PREFIX_INFO.length());
+                // key = "auction:{AUC123}:info" → 取 {} 内的 auctionId
+                String auctionId = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
                 activeIds.add(auctionId);
             }
         }

@@ -1,6 +1,7 @@
 package com.recycle.bidding.order.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.recycle.bidding.common.constant.RocketMQConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import com.recycle.bidding.common.util.TraceIdUtil;
 import com.recycle.bidding.order.entity.Order;
@@ -28,48 +29,7 @@ public class OrderEventPublisher {
     private final ObjectMapper objectMapper;
 
     /**
-     * 发布订单创建事件
-     */
-    public void publishOrderCreated(Order order) {
-        if (order == null || order.getId() == null) {
-            log.warn("发布订单创建事件失败: order 或 orderId 为空");
-            return;
-        }
-
-        String traceId = TraceIdUtil.getTraceId();
-
-        try {
-            Map<String, Object> payloadMap = new HashMap<>();
-            payloadMap.put("orderId", order.getId());
-            payloadMap.put("orderNo", order.getOrderNo());
-            payloadMap.put("userId", order.getUserId());
-            payloadMap.put("phoneModelId", order.getPhoneModelId());
-            payloadMap.put("initialEstimate", order.getInitialEstimate() != null ? order.getInitialEstimate().toPlainString() : null);
-            payloadMap.put("status", order.getStatus());
-            payloadMap.put("traceId", traceId);
-
-            String payload = objectMapper.writeValueAsString(payloadMap);
-
-            Message<String> message = MessageBuilder.withPayload(payload)
-                    .setHeader("traceId", traceId)
-                    .build();
-
-            rocketMQTemplate.syncSend(
-                    SystemConstants.TOPIC_ORDER + ":" + SystemConstants.TAG_ORDER_CREATED,
-                    message
-            );
-
-            log.info("发送订单创建消息: orderId={}, tag={}", order.getId(), SystemConstants.TAG_ORDER_CREATED);
-
-        } catch (Exception e) {
-            log.error("发送订单创建消息失败: orderId={}", order.getId(), e);
-        }
-    }
-
-    /**
      * 发布订单状态变更事件
-     * <p>
-     * 消息体直接传入 Map，避免手拼 JSON 字符串引入格式错误。
      */
     public void publishStatusChanged(Order order, OrderEventLog eventLog) {
         if (order == null || eventLog == null) {
@@ -96,7 +56,7 @@ public class OrderEventPublisher {
                     .build();
 
             rocketMQTemplate.syncSend(
-                    SystemConstants.TOPIC_ORDER + ":" + SystemConstants.TAG_ORDER_STATUS_CHANGED,
+                    RocketMQConstants.TOPIC_ORDER + ":" + RocketMQConstants.TAG_ORDER_STATUS_CHANGED,
                     message
             );
             log.info("发送状态变更消息: orderId={}, from={}, to={}",

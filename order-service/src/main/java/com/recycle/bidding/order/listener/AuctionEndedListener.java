@@ -3,6 +3,7 @@ package com.recycle.bidding.order.listener;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recycle.bidding.common.constant.OrderStatus;
+import com.recycle.bidding.common.constant.RocketMQConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import com.recycle.bidding.order.entity.Order;
 import com.recycle.bidding.order.repository.OrderRepository;
@@ -23,9 +24,9 @@ import java.time.LocalDateTime;
 @Component
 @RequiredArgsConstructor
 @RocketMQMessageListener(
-        topic = SystemConstants.TOPIC_AUCTION,
+        topic = RocketMQConstants.TOPIC_AUCTION,
         consumerGroup = "order-auction-consumer-group",
-        selectorExpression = SystemConstants.TAG_AUCTION_ENDED
+        selectorExpression = RocketMQConstants.TAG_AUCTION_ENDED
 )
 public class AuctionEndedListener implements RocketMQListener<MessageExt> {
 

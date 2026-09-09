@@ -11,8 +11,6 @@ import org.springframework.stereotype.Component;
 
 /**
  * 心跳检测处理器
- *
- * 捕获 IdleStateEvent，发送 ping 帧。
  * 超时未收到消息则关闭连接。
  */
 @Slf4j

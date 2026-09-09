@@ -2,23 +2,27 @@ package com.recycle.bidding.common.result;
 
 import com.recycle.bidding.common.exception.ErrorCode;
 import com.recycle.bidding.common.util.TraceIdUtil;
+import lombok.Data;
 
+import java.io.Serial;
 import java.io.Serializable;
 
 /**
  * 统一响应体
  */
+@Data
 public class Result<T> implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     /**
-     * 业务码：0=成功，非0=错误
+     * 业务码
      */
     private int code;
 
     /**
-     * 错误描述
+     * 描述
      */
     private String message;
 
@@ -78,38 +82,6 @@ public class Result<T> implements Serializable {
     }
 
     // --- Getters and Setters ---
-
-    public int getCode() {
-        return code;
-    }
-
-    public void setCode(int code) {
-        this.code = code;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public T getData() {
-        return data;
-    }
-
-    public void setData(T data) {
-        this.data = data;
-    }
-
-    public String getTraceId() {
-        return traceId;
-    }
-
-    public void setTraceId(String traceId) {
-        this.traceId = traceId;
-    }
 
     @Override
     public String toString() {

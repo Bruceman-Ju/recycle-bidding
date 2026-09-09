@@ -13,20 +13,20 @@
 
 ## 技术栈
 
-| 类别 | 技术 | 版本 | 用途 |
-|------|------|------|------|
-| 语言 | Java | 17 | 主开发语言 |
-| 框架 | Spring Boot | 3.2.5 | 微服务基础框架 |
+| 类别 | 技术 | 版本 | 用途           |
+|------|------|------|--------------|
+| 语言 | Java | 17 | 主开发语言        |
+| 框架 | Spring Boot | 3.2.5 | 微服务基础框架      |
 | 网关 | Spring Cloud Gateway | 2023.0.3 | API 路由、限流、鉴权 |
-| 注册中心 | Netflix Eureka | 2023.0.3 | 服务注册与发现 |
-| ORM | MyBatis-Plus | 3.5.7 | 数据持久层 |
-| 数据库 | MySQL | 8.0+ | 业务数据持久化 |
-| 缓存 | Redis | 7.x | 竞拍数据、令牌桶限流 |
-| 消息队列 | RocketMQ | 4.9+ | 异步解耦、削峰填谷 |
-| WebSocket | Netty | 4.1.111 | 商户实时出价网关 |
-| 熔断 | Resilience4j | 2.2.0 | 服务熔断与降级 |
-| 构建 | Maven | 3.9+ | 多模块构建 |
-| 容器化 | Docker Compose | - | 一键部署 |
+| 注册中心 | Netflix Eureka | 2023.0.3 | 服务注册与发现      |
+| ORM | MyBatis-Plus | 3.5.7 | 数据持久层        |
+| 数据库 | MySQL | 8.0+ | 业务数据持久化      |
+| 缓存 | Redis | 7.x | 竞拍数据、令牌桶限流   |
+| 消息队列 | RocketMQ | 4.9+ | 异步解耦、削峰填谷    |
+| WebSocket | Netty | 4.1.111 | 通知待竞拍商品    |
+| 熔断 | Resilience4j | 2.2.0 | 服务熔断与降级      |
+| 构建 | Maven | 3.9+ | 多模块构建        |
+| 容器化 | Docker Compose | - | 一键部署         |
 
 ## 系统架构
 
@@ -59,7 +59,7 @@
 | merchant-service | 8084 | 商户服务：信息管理 |
 | auction-service | 8085 | 竞拍核心：Redis ZSET + Lua 原子出价 |
 | websocket-gateway | 8086 | Netty WebSocket 网关：MQ 解耦 |
-| push-service | 8087 | 推送服务：策略模式（Mock） |
+| push-service | 8087 | 推送服务，已经替换成 websocket 推送 |
 | payment-service | 8088 | 支付服务：Mock + 事务消息 |
 | coupon-service | 8089 | 优惠券服务：发放/使用/过期管理 |
 
@@ -150,15 +150,14 @@ docker compose -f docker-compose-app.yml up -d
 - Lua 脚本一次完成：状态检查 + 金额校验 + ZSET 写入
 - 三点校验：竞拍是否运行中、是否高于当前最高价、首次出价是否 >= 底价
 
-### 2. Netty WebSocket + MQ 解耦（削峰填谷）
-- 商户通过 WebSocket 连接发送出价消息
-- WS Gateway 不做业务处理，直接转发到 RocketMQ
-- AuctionService 异步消费 MQ 消息执行出价
-- 商户端立即收到 `BID_ACK`，异步等待竞价结果推送
+### 2. Netty WebSocket 推送待竞拍商品
+
+- 前端页面开放注册入口，进入后和后端简历 websocket 链接。
+- 工程师发起竞拍，推送待竞拍商品给所有注册商户。
 
 ### 3. 三级超时保障（竞拍 3 分钟超时）
 - **第一级**：RocketMQ 延迟消息（delayLevel=7，约 3 分钟）
-- **第二级**：内存 ConcurrentHashMap 兜底扫描（@Scheduled 每秒检查）
+- **第二级**：暂定内存 ConcurrentHashMap 兜底扫描（@Scheduled 每秒检查）
 - **第三级**：Redis TTL 自动过期（Redis Key 过期作为最后防线）
 
 ### 4. 状态机驱动（订单 10 个状态）
@@ -171,12 +170,6 @@ docker compose -f docker-compose-app.yml up -d
 - **Redis ZSET**：竞拍出价数据（时效性 > 持久性）
 - **Redis HASH**：竞拍状态信息
 - **MySQL 最终落盘**：竞拍结束后 Redis 数据批量落库
-
-## 压测指南
-
-详见 [docs/LOAD-TESTING.md](docs/LOAD-TESTING.md)
-
-压测路线：初始 ~800 QPS → 多级缓存 ~2000 → 异步化 ~3000 → JVM 调优 ~4000 → 分表 **5000+**
 
 ## 项目结构
 
@@ -220,7 +213,7 @@ recycle-bidding/
 │       ├── session/                 # SessionManager, AuctionSessionManager
 │       ├── mq/                      # RocketMQProducer, RocketMQConsumer
 │       └── pubsub/                  # RedisPubSubListener
-├── push-service/                    # 推送服务
+├── push-service/                    # 推送服务，已经替换为 websocket 推送
 ├── payment-service/                 # 支付服务
 ├── coupon-service/                  # 优惠券服务
 ├── docs/                            # 文档
@@ -232,28 +225,4 @@ recycle-bidding/
 ├── docker-compose-infra.yml         # 基础设施容器化
 ├── docker-compose-app.yml           # 微服务容器化
 └── README.md                        # 本文件
-```
-
-## 业务流程时序
-
-```
-用户 ──→ 创建订单 ──→ 工程师接单 ──→ 验机+估价 ──→ 用户确认
-                                                      │
-                                                      ▼
-                                           竞拍开始 (3分钟)
-                                                      │
-                                              ┌───────┼───────┐
-                                              ▼       ▼       ▼
-                                            商户1   商户2    商户3
-                                            出价    出价     出价
-                                              └───────┼───────┘
-                                                      ▼
-                                                 竞拍结束
-                                                      │
-                                              ┌───────┴───────┐
-                                              ▼               ▼
-                                          胜出者支付      发放优惠券
-                                              │
-                                              ▼
-                                          订单完成
 ```

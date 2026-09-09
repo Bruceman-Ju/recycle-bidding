@@ -34,6 +34,15 @@ resilience4j:
         wait-duration-in-open-state: 30s
         permitted-number-of-calls-in-half-open-state: 3
 
+# 优先从 Nacos (gateway-whitelist.yml) 加载，Nacos 不可用时使用本地配置兜底
+gateway:
+  auth:
+    white-list:
+      - /auth/login
+      - /auth/register
+      - /merchant/create
+      - /eureka/**
+
 logging:
   level:
     com.recycle.bidding: DEBUG

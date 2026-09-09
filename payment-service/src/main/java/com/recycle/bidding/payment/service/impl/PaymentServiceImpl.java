@@ -2,6 +2,7 @@ package com.recycle.bidding.payment.service.impl;
 
 import cn.hutool.core.util.IdUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.recycle.bidding.common.constant.RocketMQConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import com.recycle.bidding.common.exception.BizException;
 import com.recycle.bidding.common.exception.ErrorCode;
@@ -98,7 +99,7 @@ public class PaymentServiceImpl implements PaymentService {
 
             String payload = objectMapper.writeValueAsString(successMsg);
             rocketMQTemplate.syncSend(
-                    SystemConstants.TOPIC_PAYMENT + ":" + SystemConstants.TAG_PAYMENT_SUCCESS,
+                    RocketMQConstants.TOPIC_PAYMENT + ":" + RocketMQConstants.TAG_PAYMENT_SUCCESS,
                     MessageBuilder.withPayload(payload)
                             .setHeader("traceId", TraceIdUtil.getTraceId())
                             .build()

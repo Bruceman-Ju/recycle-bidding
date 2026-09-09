@@ -1,6 +1,7 @@
 package com.recycle.bidding.payment.service;
 
 import cn.hutool.core.util.IdUtil;
+import com.recycle.bidding.common.constant.RocketMQConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import com.recycle.bidding.payment.entity.PaymentRecord;
 import com.recycle.bidding.payment.repository.PaymentRecordRepository;
@@ -43,7 +44,7 @@ public class PaymentTransactionManager implements RocketMQLocalTransactionListen
                 .build();
 
         rocketMQTemplate.sendMessageInTransaction(
-                SystemConstants.TOPIC_PAYMENT + ":" + SystemConstants.TAG_PAYMENT_REQUEST,
+                RocketMQConstants.TOPIC_PAYMENT + ":" + RocketMQConstants.TAG_PAYMENT_REQUEST,
                 message,
                 record
         );

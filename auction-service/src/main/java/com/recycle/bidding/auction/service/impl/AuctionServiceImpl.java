@@ -1,6 +1,5 @@
 package com.recycle.bidding.auction.service.impl;
 
-import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recycle.bidding.auction.config.NacosConfigManager;
@@ -10,15 +9,20 @@ import com.recycle.bidding.auction.repository.AuctionOrderRepository;
 import com.recycle.bidding.auction.repository.AuctionRecordRepository;
 import com.recycle.bidding.auction.repository.AuctionRedisRepository;
 import com.recycle.bidding.auction.service.AuctionBidService;
+import com.recycle.bidding.auction.service.AuctionSettlementService;
 import com.recycle.bidding.auction.service.AuctionService;
 import com.recycle.bidding.common.constant.AuctionConstants;
 import com.recycle.bidding.common.constant.OrderStatus;
+import com.recycle.bidding.common.constant.RocketMQConstants;
 import com.recycle.bidding.common.constant.SystemConstants;
 import com.recycle.bidding.common.exception.BizException;
 import com.recycle.bidding.common.exception.ErrorCode;
+import com.recycle.bidding.common.util.SnowflakeIdGenerator;
 import com.recycle.bidding.common.util.TraceIdUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.messaging.Message;
@@ -44,14 +48,17 @@ public class AuctionServiceImpl implements AuctionService {
     private final ObjectMapper objectMapper;
     private final AuctionOrderRepository auctionOrderRepository;
     private final NacosConfigManager nacosConfigManager;
+    private final AuctionSettlementService auctionSettlementService;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> startAuction(Long orderId, BigDecimal basePrice) {
+        // 判断订单是否存在
         AuctionOrder order = auctionOrderRepository.selectById(orderId);
         if (order == null) {
             throw new BizException(ErrorCode.SYSTEM_ERROR.getCode(), "订单不存在: " + orderId);
         }
+
+        // 判断订单状态是否可竞拍
         String currentStatus = order.getStatus();
         if (!OrderStatus.USER_CONFIRMED.equals(currentStatus)
                 && !OrderStatus.AUCTION_FAILED.equals(currentStatus)) {
@@ -59,9 +66,10 @@ public class AuctionServiceImpl implements AuctionService {
                     "当前订单状态不允许发起竞拍: " + currentStatus);
         }
 
-        String auctionId = "AUC" + IdUtil.getSnowflakeNextIdStr();
+        String auctionId = "AUC" + SnowflakeIdGenerator.nextIdStr();
 
         // 1. 初始化 Redis（TTL = 竞拍时长 + 缓冲区，防止 endAuction 读取时过期）
+        // todo: 暂时两步 redis，未来修改成 lua 脚本。
         auctionRedisRepository.initAuction(auctionId, basePrice);
         auctionRedisRepository.setAuctionOrderId(auctionId, orderId);
 
@@ -124,9 +132,8 @@ public class AuctionServiceImpl implements AuctionService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public AuctionRecord placeBid(String auctionId, Long merchantId, Long orderId, BigDecimal bidPrice) {
-        // Layer 0: 先查竞拍是否已结束
+        // 1. 竞拍是否已结束
         String status = auctionRedisRepository.getAuctionStatus(auctionId);
         if (AuctionConstants.AUCTION_STATUS_ENDED.equals(status)) {
             throw new BizException(20002, "竞拍已结束");
@@ -134,7 +141,7 @@ public class AuctionServiceImpl implements AuctionService {
         if (status == null) {
             throw new BizException(20002, "竞拍不存在或已过期");
         }
-        // Layer 1: 分布式锁（Stripe 风格幂等）
+        // 2. 分布式锁
         // 同一商户在同一竞拍中并发出价时，只有第一个请求能获取锁
         // TTL 覆盖整个竞拍周期，锁过期后商户可再次出价
         if (!auctionRedisRepository.acquireBidLock(auctionId, merchantId)) {
@@ -142,7 +149,7 @@ public class AuctionServiceImpl implements AuctionService {
             throw new BizException(ErrorCode.BID_PROCESSING);
         }
 
-        // Layer 2: Lua 业务约束（出价次数 + 金额校验）
+        // 3. Lua 业务约束（出价次数 + 金额校验）
         long result = auctionBidService.executeBid(auctionId, merchantId, bidPrice);
         if (result == -1) {
             throw new BizException(20002, "竞拍已结束或不存在");
@@ -170,11 +177,15 @@ public class AuctionServiceImpl implements AuctionService {
         if (nacosConfigManager.isAsyncMode()) {
             try {
                 String payload = objectMapper.writeValueAsString(record);
-                rocketMQTemplate.syncSend(
-                        SystemConstants.TOPIC_BID_DB_SYNC + ":" + SystemConstants.TAG_SYNC_BID_RECORD,
+                SendResult sendResult =rocketMQTemplate.syncSend(
+                        RocketMQConstants.TOPIC_BID_DB_SYNC + ":" + RocketMQConstants.TAG_SYNC_BID_RECORD,
                         payload
                 );
-                log.debug("出价记录已异步发送到MQ: auctionId={}, merchantId={}", auctionId, merchantId);
+                if (sendResult.getSendStatus().equals(SendStatus.SEND_OK)){
+                    log.debug("出价记录已异步发送到MQ: auctionId={}, merchantId={}", auctionId, merchantId);
+                }else {
+                    log.debug("出价记录发送到 MQ 失败: auctionId={}, merchantId={}", auctionId, merchantId);
+                }
             } catch (Exception e) {
                 log.warn("出价记录异步发送失败（不影响出价主流程）: auctionId={}", auctionId, e);
             }
@@ -188,9 +199,8 @@ public class AuctionServiceImpl implements AuctionService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> endAuction(String auctionId) {
-        // ========== 幂等检查：先读 DB，确认订单还是 AUCTIONING ==========
+        //  幂等检查：先读 DB，确认订单还是 AUCTIONING 
         Long orderId = auctionRedisRepository.getAuctionOrderId(auctionId);
         final Long effectiveOrderId = (orderId != null) ? orderId : 0L;
 
@@ -203,7 +213,7 @@ public class AuctionServiceImpl implements AuctionService {
             }
         }
 
-        // ========== 尝试读 Redis 数据 ==========
+        //  尝试读 Redis 数据 
         Set<ZSetOperations.TypedTuple<String>> bidsData;
         String winnerMerchantId;
         BigDecimal finalPrice;
@@ -229,7 +239,7 @@ public class AuctionServiceImpl implements AuctionService {
             throw new BizException(ErrorCode.SYSTEM_ERROR.getCode(), "Redis不可用，竞拍已标记失败");
         }
 
-        // ========== 批量落盘出价记录到 MySQL ==========
+        //  批量落盘出价记录到 MySQL 
         List<AuctionRecord> records = bidsData.stream()
                 .map(tuple -> {
                     String member = tuple.getValue();
@@ -250,25 +260,29 @@ public class AuctionServiceImpl implements AuctionService {
                             .source("redis")
                             .build();
                 })
-                .collect(Collectors.toList());
+                .toList();
 
-        if (!records.isEmpty()) {
+        //  ★ 幂等闸门：乐观锁翻转 AUCTIONING→AUCTION_ENDED 作为互斥，
+        //    翻转成功者在同一事务内由 AuctionSettlementService 落盘出价记录；
+        //    失败者视为已处理，不再重复落盘（解决并发/重试导致的重复结算）。
+        //    effectiveOrderId==0（Redis 丢失订单映射）时无法走 DB 闸门，保持原行为直接落盘。
+        if (effectiveOrderId > 0) {
+            boolean settled = auctionSettlementService.settle(effectiveOrderId, records);
+            if (!settled) {
+                return Map.of("auctionId", auctionId, "status", "ALREADY_PROCESSED");
+            }
+        } else if (!records.isEmpty()) {
             records.forEach(auctionRecordRepository::insert);
         }
 
-        // ========== 更新订单状态为 AUCTION_ENDED ==========
-        if (effectiveOrderId > 0) {
-            updateOrderStatusWithRetry(effectiveOrderId, OrderStatus.AUCTION_ENDED);
-        }
-
-        // ========== 清理 Redis 数据（主动删除，不等 TTL 过期）==========
+        //  清理 Redis 数据（主动删除，不等 TTL 过期）
         try {
             auctionRedisRepository.deleteAuction(auctionId);
         } catch (Exception e) {
             log.warn("Redis 清理失败（不影响主流程）: auctionId={}", auctionId, e);
         }
 
-        // ========== 发送 AUCTION_ENDED 通知 ==========
+        //  发送 AUCTION_ENDED 通知 
         Map<String, Object> endedMsg = new HashMap<>();
         endedMsg.put("auctionId", auctionId);
         endedMsg.put("winnerMerchantId", winnerMerchantId != null ? Long.parseLong(winnerMerchantId) : null);

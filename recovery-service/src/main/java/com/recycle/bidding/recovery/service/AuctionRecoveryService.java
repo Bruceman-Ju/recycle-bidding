@@ -120,15 +120,16 @@ public class AuctionRecoveryService {
 
         // 清理 Redis 中可能残留的竞拍数据
         try {
-            var keys = redisTemplate.keys("auction:info:AUC*");
+            var keys = redisTemplate.keys("auction:{AUC*}:info");
             if (keys != null) {
                 for (String key : keys) {
                     String storedOrderId = (String) redisTemplate.opsForHash().get(key, "orderId");
                     if (storedOrderId != null && storedOrderId.equals(String.valueOf(order.getId()))) {
-                        String auctionId = key.replace("auction:info:", "");
-                        redisTemplate.delete("auction:bids:" + auctionId);
-                        redisTemplate.delete("auction:info:" + auctionId);
-                        redisTemplate.delete("auction:merchants:" + auctionId);
+                        // 从 "auction:{AUC123}:info" 中提取 "AUC123"
+                        String auctionId = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
+                        redisTemplate.delete("auction:{" + auctionId + "}:bids");
+                        redisTemplate.delete("auction:{" + auctionId + "}:info");
+                        redisTemplate.delete("auction:{" + auctionId + "}:merchants");
                         log.info("已清理 Redis 竞拍数据: auctionId={}, orderId={}", auctionId, order.getId());
                     }
                 }

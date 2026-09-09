@@ -1,5 +1,6 @@
 package com.recycle.bidding.auction.service;
 
+import com.recycle.bidding.common.constant.AuctionConstants;
 import com.recycle.bidding.common.exception.BizException;
 import com.recycle.bidding.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -47,9 +48,9 @@ public class AuctionBidService {
      * @return 1=成功, -1=竞拍未进行中, -2=出价过低, -3=超出最大出价次数
      */
     public long executeBid(String auctionId, Long merchantId, BigDecimal bidPrice) {
-        String bidsKey = "auction:bids:" + auctionId;
-        String infoKey = "auction:info:" + auctionId;
-        String bidCountKey = "auction:bidcount:" + auctionId + ":" + merchantId;
+        String bidsKey = AuctionConstants.REDIS_KEY_PREFIX_BIDS + auctionId + AuctionConstants.SUFFIX_BIDS;
+        String infoKey = AuctionConstants.REDIS_KEY_PREFIX_INFO + auctionId + AuctionConstants.SUFFIX_INFO;
+        String bidCountKey = AuctionConstants.REDIS_KEY_PREFIX_BIDS + auctionId + AuctionConstants.SUFFIX_BID_COUNT + merchantId;
 
         List<String> keys = Arrays.asList(bidsKey, infoKey, bidCountKey);
 
