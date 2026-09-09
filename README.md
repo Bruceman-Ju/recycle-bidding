@@ -150,10 +150,10 @@ docker compose -f docker-compose-app.yml up -d
 - Lua 脚本一次完成：状态检查 + 金额校验 + ZSET 写入
 - 三点校验：竞拍是否运行中、是否高于当前最高价、首次出价是否 >= 底价
 
-### 2. Netty WebSocket 推送待竞拍商品
+### 2. Netty WebSocket 竞拍事件通知（事件 + 状态分离）
 
-- 前端页面开放注册入口，进入后和后端简历 websocket 链接。
-- 工程师发起竞拍，推送待竞拍商品给所有注册商户。
+- 商户端建立 WebSocket 连接并完成鉴权后，仅接收"竞拍开始"等实时事件推送（BROADCASTING 消费 MQ，广播给所有在线商户）。
+- WebSocket 只作增量通知通道，**不**在连接时推送全量清单；活跃竞拍清单由客户端按需通过 `GET /api/v1/auction/active` 拉取，出价走 `POST /api/v1/auction/bid`。
 
 ### 3. 三级超时保障（竞拍 3 分钟超时）
 - **第一级**：RocketMQ 延迟消息（delayLevel=7，约 3 分钟）
@@ -209,10 +209,9 @@ recycle-bidding/
 ├── websocket-gateway/               # WebSocket 网关
 │   └── src/main/java/.../ws/
 │       ├── server/                  # WebSocketServer (Netty), ChannelInitializer
-│       ├── handler/                 # AuthHandler, BidRequestHandler, HeartbeatHandler
-│       ├── session/                 # SessionManager, AuctionSessionManager
-│       ├── mq/                      # RocketMQProducer, RocketMQConsumer
-│       └── pubsub/                  # RedisPubSubListener
+│       ├── handler/                 # AuthHandler（鉴权）, HeartbeatHandler（心跳）
+│       ├── session/                 # SessionManager（merchantId→Channel 映射）
+│       └── mq/                      # RocketMQConsumer（BROADCASTING 消费 AUCTION_STARTED 推送）
 ├── push-service/                    # 推送服务，已经替换为 websocket 推送
 ├── payment-service/                 # 支付服务
 ├── coupon-service/                  # 优惠券服务

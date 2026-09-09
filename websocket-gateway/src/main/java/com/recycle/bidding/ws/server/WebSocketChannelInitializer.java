@@ -37,7 +37,7 @@ public class WebSocketChannelInitializer extends ChannelInitializer<SocketChanne
                 .addLast(new HttpServerCodec())
                 .addLast(new HttpObjectAggregator(65536))
                 .addLast(new WebSocketServerProtocolHandler("/ws"))
-                .addLast(new IdleStateHandler(60, 0, 0))
+                .addLast(new IdleStateHandler(HeartbeatHandler.IDLE_TIMEOUT_SECONDS, 0, 0))
                 .addLast(authHandler)
                 .addLast(heartbeatHandler);
     }

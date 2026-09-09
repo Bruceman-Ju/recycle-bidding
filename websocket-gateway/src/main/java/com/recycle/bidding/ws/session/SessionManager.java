@@ -88,18 +88,4 @@ public class SessionManager {
             }
         }
     }
-
-    /**
-     * 获取当前在线商户数
-     */
-    public int getOnlineCount() {
-        return sessionMap.size();
-    }
-
-    /**
-     * 获取所有在线商户ID
-     */
-    public ConcurrentHashMap.KeySetView<Long, Channel> getOnlineMerchants() {
-        return sessionMap.keySet();
-    }
 }

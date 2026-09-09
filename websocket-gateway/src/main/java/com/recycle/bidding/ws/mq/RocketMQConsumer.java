@@ -1,7 +1,10 @@
 package com.recycle.bidding.ws.mq;
 
+import java.math.BigDecimal;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.recycle.bidding.ws.session.SessionManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,8 +22,6 @@ import org.springframework.stereotype.Component;
  *
  * 注意：
  *  - ws-gateway 不再处理出价、竞拍结束等消息——这些业务已交由 HTTP API 处理
- *  - 消费者能力在这个业务量级下远未到瓶颈（日峰值约几十条/秒）
- *  - 客户端有 30 秒轮询兜底，MQ 短暂不可用时商户可自行拉取
  */
 @Slf4j
 @Component
@@ -54,13 +55,21 @@ public class RocketMQConsumer implements RocketMQListener<String> {
     }
 
     /**
-     * 竞拍开始：广播给本实例所有在线商户
+     * 竞拍开始：广播给所有在线商户。
+     * 只透传必要字段（auctionId/orderId/basePrice）
+     * 客户端以 GET /api/v1/auction/active 为全量权威，WS 仅作实时增量加速。
      */
     private void handleAuctionStarted(JsonNode jsonNode) {
-        String auctionId = jsonNode.has("auctionId") ? jsonNode.get("auctionId").asText() : "";
+        String auctionId = jsonNode.path("auctionId").asText("");
+        long orderId = jsonNode.path("orderId").asLong(0L);
+        String basePrice = jsonNode.path("basePrice").asText("0");
         log.info("竞拍开始广播: auctionId={}", auctionId);
 
-        String payload = jsonNode.toString();
-        sessionManager.broadcastToAll(payload);
+        ObjectNode summary = objectMapper.createObjectNode();
+        summary.put("type", "AUCTION_STARTED");
+        summary.put("auctionId", auctionId);
+        summary.put("orderId", orderId);
+        summary.put("basePrice", new BigDecimal(basePrice));
+        sessionManager.broadcastToAll(summary.toString());
     }
 }
